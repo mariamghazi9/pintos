@@ -144,6 +144,7 @@ void update_priority()
   {
     struct thread *t = list_entry(element, struct thread, allelem);
     int pr = PRI_MAX - REAL_TO_INT_ROUND(t->recent_cpu / 4) - t->nice * 2;
+    t->virtual_priority = check_priority_bound(pr);
     t->priority = check_priority_bound(pr);
   }
   intr_set_level(previous_level);
@@ -177,7 +178,7 @@ if (thread_mlfqs)
     {
       int ready_threads = (int)list_size(&ready_list);
       if (t != idle_thread)
-      { //to be removed
+      { 
         ready_threads += 1;
       }
       load_avg = REAL_ADD(REAL_DIV_INT(REAL_MULT_INT(load_avg, 59), 60), REAL_DIV_INT(INT_TO_REAL(ready_threads), 60));
@@ -189,8 +190,7 @@ for (element = list_begin(&all_list); element != list_end(&all_list); element = 
         thread1->recent_cpu = REAL_ADD_INT(REAL_MULT(REAL_DIV(load, REAL_ADD_INT(load, 1)), thread1->recent_cpu), thread1->nice);
       }
     }
-    if (timer_ticks() % 4 == 0) //every four ticks
-
+    if (timer_ticks() % 4 == 0) 
     {
       update_priority();
       intr_yield_on_return();
@@ -198,7 +198,6 @@ for (element = list_begin(&all_list); element != list_end(&all_list); element = 
   }
 else
   {
-    /* Enforce preemption. */
     if (++thread_ticks >= TIME_SLICE)
     {
       intr_yield_on_return();
@@ -285,7 +284,7 @@ if (thread_mlfqs)
 
   intr_set_level(previous_level);
   
-  /* Add to run queue. */
+
   thread_unblock (t);
 
 if(t->priority > thread_current()->virtual_priority)
@@ -432,9 +431,9 @@ thread_set_priority (int new_priority)
   t->priority= new_priority;
     if(old_priority>new_priority &&list_empty(&thread_current()->locks)){
       t->virtual_priority=new_priority;     
-      thread_yield();
     }
-  
+  thread_yield();
+
 }
 
 /* Returns the current thread's priority. */
@@ -449,18 +448,19 @@ int check_priority_bound(int priority)
  if(priority>PRI_MAX)
   return PRI_MAX;
  if(priority<PRI_MIN)
- return PRI_MIN;
+  return PRI_MIN;
  return priority; 
 }
 /* Sets the current thread's nice value to NICE. */
 void
 thread_set_nice (int nice)
 {
-
   thread_current()->nice = nice;
   int priority = PRI_MAX - REAL_TO_INT_ROUND(thread_current()->recent_cpu / 4) - thread_current()->nice * 2;
   priority = check_priority_bound(priority);
-  thread_set_priority(priority);
+  thread_current()->priority=priority;
+  thread_current()->virtual_priority=priority;
+
 }
 
 /* Returns the current thread's nice value. */

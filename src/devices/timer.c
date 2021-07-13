@@ -217,24 +217,6 @@ timer_interrupt (struct intr_frame *args UNUSED)
      break;
            
     } 
-     
-  
- /* printf(" THREAD NAME IS  %s\n",current->name);
-   while (!list_empty (&blockedThreads))
-     {
-        iter = list_pop_front (&blockedThreads);
-        if(!list_empty(&blockedThreads)){
-        current = list_entry(list_prev(iter),struct thread,elem);} 
-        if(current->sleep_time <=ticks){
-        thread_unblock(current);
-        }
-    
-     
-     else
-     break;
-     }
- */
-     
   
 }
 
