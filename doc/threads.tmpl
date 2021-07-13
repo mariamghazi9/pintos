@@ -1,4 +1,4 @@
-            +--------------------+
+          +--------------------+
             |        CS 140      |
             | PROJECT 1: THREADS |
             |   DESIGN DOCUMENT  |
@@ -8,9 +8,9 @@
 
 >> Fill in the names and email addresses of your group members.
 
-FirstName LastName <email@domain.example>
-FirstName LastName <email@domain.example>
-FirstName LastName <email@domain.example>
+Asmaa Ramadan Khamis <rasmaa1999@gmail.com>
+Mariam Ahmed Ghazi <mariamghazi9@gmail.com>
+
 
 ---- PRELIMINARIES ----
 
@@ -28,28 +28,57 @@ FirstName LastName <email@domain.example>
 
 >> A1: Copy here the declaration of each new or changed `struct' or
 >> `struct' member, global or static variable, `typedef', or
->> enumeration.  Identify the purpose of each in 25 words or less.
+>> enumeration.
 
+    1) struct list blocked_threads
+   
+    
+  Identify the purpose of each in 25 words or less.
+  A list that contains all the blocked threads. when a thread calls sleep timer sleep is called and this thread is blocked and pushed into the blocked_threads list.
 ---- ALGORITHMS ----
 
 >> A2: Briefly describe what happens in a call to timer_sleep(),
+        
+       1) check that interrupts are on at the beginning 
+       2) save old interrupt state.
+       3) disable interrupts.
+       4) update sleeping_time of thread.
+       5) block the thread
+       6) push the thread into blocked_threads list.
+       7) set interrupt level into old level.
+       
 >> including the effects of the timer interrupt handler.
+       eliminated busy waiting 
+       1) Increment tickes.
+       2) thread_tick()
+       3) unblock all threads that has sleep_time <=ticks from blocked_threads list (ascending order).
+       4) if sleep_time >ticks then we break as the rest threads are still blocked
 
 >> A3: What steps are taken to minimize the amount of time spent in
 >> the timer interrupt handler?
+       
+       1) elimination of busy waiting.
+       2) sorting the blocked_threads in ascending order which improves the procedure of waking them up.
 
 ---- SYNCHRONIZATION ----
 
 >> A4: How are race conditions avoided when multiple threads call
 >> timer_sleep() simultaneously?
+       
+       1) Interrupts are turned off to avoid race conditions.
 
 >> A5: How are race conditions avoided when a timer interrupt occurs
 >> during a call to timer_sleep()?
+        
+       1) Interrupts are turned off so they are not served during a call to timer_sleep() 
 
 ---- RATIONALE ----
 
 >> A6: Why did you choose this design?  In what ways is it superior to
 >> another design you considered?
+
+       1) We choose this design because data shared between kernel threads and interrupt handler mush be handled within kernel thread by turning OFF interrupts.
+       2) This solution is good because it eliminates busy waiting.
 
              PRIORITY SCHEDULING
              ===================
@@ -60,31 +89,120 @@ FirstName LastName <email@domain.example>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+       1) struct thread
+      {
+        /* Owned by thread.c. */
+        tid_t tid;                          /* Thread identifier. */
+        enum thread_status status;          /* Thread state. */
+        char name[16];                      /* Name (for debugging purposes). */
+        uint8_t *stack;                     /* Saved stack pointer. */
+        int priority;                       /* Priority. */
+        struct list_elem allelem;           /* List element for all threads list. */
+        int64_t sleep_time;
+        /* Shared between thread.c and synch.c. */
+        int virtual_priority;
+        struct list locks;
+         struct lock *wait_lock;
+        struct list_elem elem;              /* List element. */
+        int nice;
+        int64_t recent_cpu;
+     
+        #ifdef USERPROG
+        /* Owned by userprog/process.c. */
+        uint32_t *pagedir;                  /* Page directory. */
+         #endif
+     
+        /* Owned by thread.c. */
+        unsigned magic;                     /* Detects stack overflow. */
+      };
+      
+      
+        ADDED : 1) virtual_priority : for handling priority donation around mutex locks.
+                2) list locks : list of locks currently acquired by this thread.
+                3) wait lock : lock that this threads is waiting on to acquire.
+                
+                
+                
+       2) struct lock 
+      {
+        struct thread *holder;      /* Thread holding lock (for debugging). */
+        struct semaphore semaphore;  /* Binary semaphore controlling access. */
+        int lock_max_priority;
+        struct list_elem element;
+      };
+      
+        ADDED : 1) lock_max_priority : max priority of all threads waiting to acquire this lock.
+                2) element : to be able to add lock into a list.
+        
+
 >> B2: Explain the data structure used to track priority donation.
+
+      - Each thread has a member which is the the lock it's waiting for.
+      - lock has a member holder -> thread that is holding it.
+      - if a thread is waiting for a lock , Then the lock's priority will be donated to the holding thread
+	And if the holder is blocked it will donate to next holder etc..
 >> Use ASCII art to diagram a nested donation.  (Alternately, submit a
 >> .png file.)
+
+ Explanation:
+ 
+ Each thread has a pointer to the lock that blocks it, Each lock has a pointer to the thread that holds it
+ If lock blocks a thread , Then it will donate to the holder, if the holder is blocked it will donate to next holder,..etc.
+
+
+  The ASCII diagram
+		- Tx : Thread number X , T could be L,M or H
+		- Kx : Lock number X
+		- Kx(Ty) : Thread y running in Lock x
+		- Tx->Kx : Thread X points to Lock x that blocked it
+		- ---> : Lock donates to thread or thread donates to lock
+	the diagram
+		K1(L1)
+		K2(M2->K1)	:  M2--->K1--->L1
+		K3(H3->K2)  :  H3--->K2--->M2--->K1--->L1
 
 ---- ALGORITHMS ----
 
 >> B3: How do you ensure that the highest priority thread waiting for
 >> a lock, semaphore, or condition variable wakes up first?
+    In all cases we use list sort by priority.
+    1) By sorting the waiters list in dedcending order according to priority and pop the front of the list.
 
 >> B4: Describe the sequence of events when a call to lock_acquire()
 >> causes a priority donation.  How is nested donation handled?
 
+   1) check if lock holder is null or not
+   2) if not null
+   3) set waiting lock with current lock
+   4) donate your priority to the lock then lock donates this priority to the thread holding the lock.
+   5) these steps are repeated in a nested fashion.
+
 >> B5: Describe the sequence of events when lock_release() is called
 >> on a lock that a higher-priority thread is waiting for.
-
+   1) remove the lock from the list of lock of current thread.
+   2) reset the priority of the the thread that was holding the lock.
+   2) pop from list of locks and take maximum donated priority
 ---- SYNCHRONIZATION ----
 
 >> B6: Describe a potential race in thread_set_priority() and explain
 >> how your implementation avoids it.  Can you use a lock to avoid
 >> this race?
 
+   thread_set_priority() is called to set the current thread's priority
+   The timer interrupt calls thread_set_priority() to change all threads' priorities.
+   Interrupts are disabled during setting the priority to avoid race conditions.
+
 ---- RATIONALE ----
 
 >> B7: Why did you choose this design?  In what ways is it superior to
 >> another design you considered?
+
+   -priority scheduling is implemented using priority donations to avoid the possibility of deadlocks.
+   -if T1 has lower priority than T2, T1 acquires the lock then its time slice expires
+   -using priority scheduler without donation may cause starvation and may cause a deadlock if T1 is never rescheduled.
+   -priority donations allow T1 to be rescheduled so it can finish and T2 can acquire the lock.
+
+
 
               ADVANCED SCHEDULER
               ==================
@@ -95,6 +213,13 @@ FirstName LastName <email@domain.example>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+1) in thread.h:
+   in struct thread: -int nice: thread's nice value
+                     -int64_t recent_cpu: thread's recent_cpu value with fixed point
+2) in thread.c:
+	- int load_avg: System load_avg value
+3) fixed-point.h class: for fixed point operations
+
 ---- ALGORITHMS ----
 
 >> C2: Suppose threads A, B, and C have nice values 0, 1, and 2.  Each
@@ -102,26 +227,43 @@ FirstName LastName <email@domain.example>
 >> scheduling decision and the priority and recent_cpu values for each
 >> thread after each given number of timer ticks:
 
-timer  recent_cpu    priority   thread
-ticks   A   B   C   A   B   C   to run
------  --  --  --  --  --  --   ------
- 0
- 4
- 8
-12
-16
-20
-24
-28
-32
-36
+timer  recent_cpu    priority   thread      
+ticks   A   B   C   A   B   C   to run       
+-----  --  --  --  --  --  --   ------      
+ 0      0   0   0  63  61  59     A          
+ 4      4   0   0  62  61  59     A         
+ 8      8   0   0  61  61  59     B         
+12      8   4   0  61  60  59     A         
+16      12  4   0  60  60  59     B          
+20      12  8   0  60  59  59     A          
+24      16  8   0  59  59  59     C          
+28      16  8   4  59  59  58     B          
+32      16  12  4  59  58  58     A          
+36      20  12  4  58  58  58     C          
+
 
 >> C3: Did any ambiguities in the scheduler specification make values
 >> in the table uncertain?  If so, what rule did you use to resolve
 >> them?  Does this match the behavior of your scheduler?
 
+ two ambiguity cases:
+ 
+   -When too many threads with the same priority, we choose the first one was inserted to the queue 
+   -the priority of the current thread equals one of the threads in the ready list, choose the one in the ready list with the most waited time
+  
+
 >> C4: How is the way you divided the cost of scheduling between code
 >> inside and outside interrupt context likely to affect performance?
+
+   -Only disabling interrupts for values which might produce race conditions.
+   -Due to many calculations of the advanced scheduler , this design uses interrupt disabling which leads to lack of high performance.
+   -If the CPU spends too much time on calculations for recent_cpu, load_avg and 
+    priority, then it takes away most of the time that a thread before enforced 
+    preemption. Then this thread can not get enough running time as expected and it 
+    will run longer. This will cause occupying more CPU time, and raising the load_avg, recent_cpu, and therefore lowers priority. 
+    This may disturb the scheduling.
+
+
 
 ---- RATIONALE ----
 
@@ -130,6 +272,20 @@ ticks   A   B   C   A   B   C   to run
 >> time to work on this part of the project, how might you choose to
 >> refine or improve your design?
 
+   Advantages:
+   - code is simple to understand and readable.
+   - behavior of threads can be predicted by calculating system threads and scheduling variables.
+
+   Disadvantages:
+   - in priority scheduling, starvation may occur.
+   - much overhead in scheduling calculations which requires interrupt disabling.
+   - inserting in the list takes linear time. 
+   
+   To improve the design:
+   - using better datastructures.
+   - using semaphores instead of interrupt disabling.
+
+  
 >> C6: The assignment explains arithmetic for fixed-point math in
 >> detail, but it leaves it open to you to implement it.  Why did you
 >> decide to implement it the way you did?  If you created an
@@ -137,6 +293,15 @@ ticks   A   B   C   A   B   C   to run
 >> type and/or a set of functions or macros to manipulate fixed-point
 >> numbers, why did you do so?  If not, why not?
 
+   fixed point math is implemented through fixed-point.h class.
+   
+   Reason for implementation:
+   easy to understand and implement.
+   
+   abstract layer (fixed-point.h class):
+   easier maintainance and readability.
+   
+   
                SURVEY QUESTIONS
                ================
 
