@@ -3,6 +3,8 @@
 
 #define F 16384
 
+
+
 #define INT_TO_REAL(n) (n) * (F)
 #define REAL_TO_INT(x) (x) / (F)
 #define REAL_TO_INT_ROUND(x) ((x) >= 0 ? ((x) + (F) / 2) / (F) : ((x) - (F) / 2) / (F))
