@@ -1,0 +1,1 @@
+export PATH=/home/mariam/pintos/src/utils:/home/mariam/pintos/src/utils:/home/mariam/pintos/src/utils:/home/mariam/pintos/src/utils:/home/mariam/pintos/src/utils:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
